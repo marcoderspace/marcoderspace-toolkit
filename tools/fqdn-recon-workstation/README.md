@@ -2,6 +2,8 @@
 
 A browser-based tool for collecting and correlating DNS data, mail-related signals, and certificate transparency records for a given domain.
 
+[Open tool](index.html)
+
 ## Overview
 
 This tool takes a fully qualified domain name and performs a series of queries against public infrastructure to build a consolidated view of externally observable signals.
