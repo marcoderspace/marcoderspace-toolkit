@@ -8,6 +8,10 @@ This tool takes a fully qualified domain name and performs a series of queries a
 
 All logic runs directly in the browser, without any backend.
 
+## Design intent
+
+The tool is designed around the idea that understanding an external surface begins with observing signals, not blindly scanning endpoints.
+
 ## How it works
 
 ### 1. DNS data collection
@@ -113,3 +117,75 @@ Enter a domain and run the scan.
 ## Status
 
 Experimental
+
+
+
+## Data sources and mechanisms
+
+The tool relies entirely on publicly accessible infrastructure and browser-native capabilities.
+
+### DNS over HTTPS (DoH)
+
+DNS queries are performed using DNS over HTTPS against public resolvers.
+
+Instead of using the system resolver, the tool sends HTTPS requests to a DoH endpoint and receives DNS responses in JSON format.
+
+This approach allows:
+- direct DNS querying from the browser
+- consistent response structure across environments
+- avoidance of local resolver differences
+
+---
+
+### TXT-based policy discovery
+
+Several domain-level controls are published via DNS TXT records.
+
+The tool queries specific hostnames and filters TXT values based on known patterns:
+
+- SPF → `v=spf1`
+- DMARC → `v=DMARC1`
+- MTA-STS → `v=STSv1`
+- BIMI → `v=BIMI1`
+- DKIM → `v=DKIM1`
+
+This is essentially pattern-based extraction from raw TXT records.
+
+---
+
+### Certificate Transparency (CT)
+
+Certificate data is retrieved from public CT log aggregators.
+
+The tool queries crt.sh and processes returned JSON data to extract:
+
+- certificate names (SAN and common name)
+- unique hostnames
+- issuing authorities
+
+CT logs provide a near real-time record of publicly issued certificates and are a strong signal of externally exposed names.
+
+---
+
+### Browser execution model
+
+All requests are executed directly from the browser using the Fetch API.
+
+Implications:
+
+- no server-side processing
+- no persistent storage
+- subject to CORS and browser security policies
+- dependent on availability of public endpoints
+
+---
+
+### Data normalization
+
+Raw responses from different sources are normalized into simple structures:
+
+- record lists for DNS
+- filtered values for policy signals
+- deduplicated hostname sets for CT
+
+This enables consistent rendering and basic aggregation across heterogeneous sources.
