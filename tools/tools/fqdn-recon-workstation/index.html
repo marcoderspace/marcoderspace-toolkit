@@ -1,0 +1,547 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>marcoderspace :: fqdn recon</title>
+  <style>
+    :root {
+      --bg: #000;
+      --fg: #00ff00;
+      --dim: #00ff00;
+      --border: rgba(0,255,102,0.24);
+      --glow: 0 0 8px rgba(0,255,102,0.45);
+      --bad: #ff6b6b;
+      --warn: #ffd166;
+    }
+
+    * { box-sizing: border-box; }
+    html, body {
+      margin: 0;
+      padding: 0;
+      background: var(--bg);
+      color: var(--fg);
+      font-family: "Courier New", Courier, monospace;
+      min-height: 100%;
+    }
+
+    body {
+      padding: 18px;
+      line-height: 1.45;
+      letter-spacing: 0.03em;
+      text-shadow: var(--glow);
+    }
+
+    .shell {
+      max-width: 1280px;
+      margin: 0 auto;
+      border: 1px solid var(--border);
+      padding: 16px;
+      background: radial-gradient(circle at top, rgba(0,255,102,0.04), transparent 35%);
+      box-shadow: inset 0 0 30px rgba(0,255,102,0.03);
+    }
+
+    .term-line { white-space: pre-wrap; margin: 0 0 8px 0; }
+    .muted { opacity: 0.78; }
+    .warn { color: var(--warn); }
+    .bad { color: var(--bad); }
+
+    .input-row {
+      display: flex;
+      gap: 10px;
+      align-items: center;
+      flex-wrap: wrap;
+      margin: 14px 0 16px;
+    }
+
+    .prefix { color: var(--dim); }
+
+    input {
+      flex: 1 1 420px;
+      min-width: 240px;
+      background: transparent;
+      color: var(--fg);
+      border: 1px solid var(--border);
+      outline: none;
+      padding: 10px 12px;
+      font: inherit;
+      text-shadow: var(--glow);
+    }
+
+    input::placeholder { color: rgba(0,255,102,0.45); }
+
+    button {
+      background: transparent;
+      color: var(--fg);
+      border: 1px solid var(--border);
+      padding: 10px 14px;
+      cursor: pointer;
+      font: inherit;
+      text-shadow: var(--glow);
+    }
+
+    button:hover { box-shadow: 0 0 12px rgba(0,255,102,0.18); }
+    button:disabled { opacity: 0.45; cursor: wait; }
+
+    .legend, .status, .grid {
+      border-top: 1px solid var(--border);
+      padding-top: 12px;
+      margin-top: 12px;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+      gap: 12px;
+    }
+
+    .panel {
+      border: 1px solid var(--border);
+      padding: 12px;
+      min-height: 160px;
+      background: rgba(0,255,102,0.02);
+    }
+
+    .panel h3 {
+      margin: 0 0 10px 0;
+      font-size: 14px;
+      color: var(--dim);
+      font-weight: normal;
+      text-transform: lowercase;
+    }
+
+    .mono-list {
+      margin: 0;
+      padding-left: 18px;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
+    .mono-list li { margin-bottom: 5px; }
+    .small { font-size: 12px; opacity: 0.86; }
+
+    .blink::after {
+      content: "_";
+      animation: blink 1s infinite;
+      margin-left: 4px;
+    }
+
+    @keyframes blink {
+      0%, 49%, 100% { opacity: 1; }
+      50%, 99% { opacity: 0; }
+    }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <div class="term-line">marcoderspace :: fqdn recon workstation</div>
+    <div class="term-line muted">dns over https + mail posture + security dns + certificate transparency surface</div>
+
+    <div class="input-row">
+      <span class="prefix">&gt; target_fqdn:</span>
+      <input id="fqdnInput" type="text" placeholder="example.com or app.example.com" autocomplete="off" spellcheck="false" />
+      <button id="scanBtn">[ scan ]</button>
+      <button id="clearBtn">[ clear ]</button>
+      <button id="sampleBtn">[ sample ]</button>
+    </div>
+
+    <div class="legend small">
+      <div class="term-line">legend</div>
+      <div class="term-line muted">1) enter fqdn or zone name</div>
+      <div class="term-line muted">2) tool queries public dns over https</div>
+      <div class="term-line muted">3) tool separates raw dns from mail-policy dns</div>
+      <div class="term-line muted">4) tool probes common dkim selectors</div>
+      <div class="term-line muted">5) tool pulls crt.sh names and summarizes what stands out</div>
+    </div>
+
+    <div class="status" id="status">
+      <div class="term-line blink">awaiting input</div>
+    </div>
+
+    <div class="grid" id="results" style="display:none;">
+      <section class="panel">
+        <h3>target summary</h3>
+        <ul class="mono-list" id="summaryList"></ul>
+      </section>
+
+      <section class="panel">
+        <h3>dns core</h3>
+        <ul class="mono-list" id="dnsCore"></ul>
+      </section>
+
+      <section class="panel">
+        <h3>mail + policy signals</h3>
+        <ul class="mono-list" id="mailSignals"></ul>
+      </section>
+
+      <section class="panel">
+        <h3>certificate transparency / crt.sh</h3>
+        <ul class="mono-list" id="ctSignals"></ul>
+      </section>
+
+      <section class="panel">
+        <h3>interesting names discovered</h3>
+        <ul class="mono-list" id="nameFindings"></ul>
+      </section>
+
+      <section class="panel">
+        <h3>derived observations</h3>
+        <ul class="mono-list" id="derivedSignals"></ul>
+      </section>
+    </div>
+  </div>
+
+  <script>
+    const els = {
+      fqdnInput: document.getElementById('fqdnInput'),
+      scanBtn: document.getElementById('scanBtn'),
+      clearBtn: document.getElementById('clearBtn'),
+      sampleBtn: document.getElementById('sampleBtn'),
+      status: document.getElementById('status'),
+      results: document.getElementById('results'),
+      summaryList: document.getElementById('summaryList'),
+      dnsCore: document.getElementById('dnsCore'),
+      mailSignals: document.getElementById('mailSignals'),
+      ctSignals: document.getElementById('ctSignals'),
+      nameFindings: document.getElementById('nameFindings'),
+      derivedSignals: document.getElementById('derivedSignals')
+    };
+
+    const CONFIG = {
+      dohBase: 'https://cloudflare-dns.com/dns-query',
+      crtBase: 'https://crt.sh/'
+    };
+
+    const COMMON_DKIM_SELECTORS = [
+      'default', 'google', 'selector1', 'selector2', 'k1', 'mail', 'smtp', 'mandrill', 'amazonses'
+    ];
+
+    function escapeHtml(value) {
+      return String(value)
+        .replaceAll('&', '&amp;')
+        .replaceAll('<', '&lt;')
+        .replaceAll('>', '&gt;')
+        .replaceAll('"', '&quot;')
+        .replaceAll("'", '&#039;');
+    }
+
+    function setStatus(lines, type = 'normal', blinking = false) {
+      const cls = type === 'bad' ? 'bad' : (type === 'warn' ? 'warn' : '');
+      els.status.innerHTML = lines
+        .map((line, index) => `<div class="term-line ${cls} ${blinking && index === lines.length - 1 ? 'blink' : ''}">${escapeHtml(line)}</div>`)
+        .join('');
+    }
+
+    function setList(element, items) {
+      const cleanItems = (items && items.length) ? items : ['no data'];
+      element.innerHTML = cleanItems.map(item => `<li>${escapeHtml(item)}</li>`).join('');
+    }
+
+    function normalizeTarget(raw) {
+      const value = raw.trim().toLowerCase().replace(/^https?:\/\//, '').replace(/\/.*$/, '').replace(/\.$/, '');
+      if (!value) return '';
+      const fqdnRegex = /^(?=.{1,253}$)(?!-)([a-z0-9-]{1,63}\.)+[a-z]{2,63}$/i;
+      const localhostRegex = /^localhost$/i;
+      return (fqdnRegex.test(value) || localhostRegex.test(value)) ? value : '';
+    }
+
+    function uniq(arr) {
+      return [...new Set(arr.filter(Boolean))];
+    }
+
+    async function doh(name, type) {
+      const url = `${CONFIG.dohBase}?name=${encodeURIComponent(name)}&type=${encodeURIComponent(type)}`;
+      const res = await fetch(url, { headers: { 'accept': 'application/dns-json' } });
+      if (!res.ok) throw new Error(`doh query failed for ${name} ${type}`);
+      return res.json();
+    }
+
+    function extractAnswers(json) {
+      return (json.Answer || []).map(x => ({
+        name: x.name,
+        type: x.type,
+        ttl: x.TTL,
+        data: x.data
+      }));
+    }
+
+    async function queryRecordSet(base) {
+      const recordTypes = ['A', 'AAAA', 'CNAME', 'MX', 'NS', 'TXT', 'SOA', 'CAA'];
+      const out = {};
+      await Promise.all(recordTypes.map(async (type) => {
+        try {
+          const json = await doh(base, type);
+          out[type] = {
+            status: json.Status,
+            ad: !!json.AD,
+            answers: extractAnswers(json)
+          };
+        } catch (err) {
+          out[type] = { error: err.message, answers: [] };
+        }
+      }));
+      return out;
+    }
+
+    function keepTxtValues(answers, pattern) {
+      return (answers || [])
+        .map(x => x.data)
+        .filter(v => pattern.test(v));
+    }
+
+    async function queryTxtHost(host, pattern) {
+      try {
+        const json = await doh(host, 'TXT');
+        const answers = extractAnswers(json);
+        return {
+          host,
+          values: keepTxtValues(answers, pattern),
+          allTxt: answers.map(x => x.data)
+        };
+      } catch (err) {
+        return {
+          host,
+          values: [],
+          allTxt: [],
+          error: err.message
+        };
+      }
+    }
+
+    async function queryMailSignals(base) {
+      const [spf, dmarc, mtaSts, bimi] = await Promise.all([
+        queryTxtHost(base, /^"?v=spf1/i),
+        queryTxtHost(`_dmarc.${base}`, /^"?v=dmarc1/i),
+        queryTxtHost(`_mta-sts.${base}`, /^"?v=stsv1/i),
+        queryTxtHost(`default._bimi.${base}`, /^"?v=bimi1/i)
+      ]);
+
+      const dkimResults = [];
+      for (const selector of COMMON_DKIM_SELECTORS) {
+        const host = `${selector}._domainkey.${base}`;
+        try {
+          const json = await doh(host, 'TXT');
+          const values = keepTxtValues(extractAnswers(json), /^"?v=dkim1/i);
+          if (values.length) dkimResults.push({ selector, host, values });
+        } catch (_) {
+          // ignore
+        }
+      }
+
+      return { SPF: spf, DMARC: dmarc, MTA_STS: mtaSts, BIMI: bimi, DKIM: dkimResults };
+    }
+
+    async function queryCrtSh(base) {
+      const url = `${CONFIG.crtBase}?q=${encodeURIComponent('%.' + base)}&output=json`;
+      try {
+        const res = await fetch(url);
+        if (!res.ok) throw new Error(`crt.sh returned ${res.status}`);
+        const text = (await res.text()).trim();
+        if (!text) return { ok: true, entries: [] };
+        const data = JSON.parse(text);
+        return { ok: true, entries: Array.isArray(data) ? data : [] };
+      } catch (err) {
+        return { ok: false, error: err.message, entries: [] };
+      }
+    }
+
+    function summarizeDns(base, dns, ctParsed, mail) {
+      const a = dns.A?.answers?.map(x => x.data) || [];
+      const aaaa = dns.AAAA?.answers?.map(x => x.data) || [];
+      const cname = dns.CNAME?.answers?.map(x => x.data) || [];
+      const mx = dns.MX?.answers?.map(x => x.data) || [];
+      const ns = dns.NS?.answers?.map(x => x.data) || [];
+      const txt = dns.TXT?.answers?.map(x => x.data) || [];
+      const caa = dns.CAA?.answers?.map(x => x.data) || [];
+
+      return [
+        `fqdn: ${base}`,
+        `a_count: ${a.length}`,
+        `aaaa_count: ${aaaa.length}`,
+        `cname_count: ${cname.length}`,
+        `mx_count: ${mx.length}`,
+        `ns_count: ${ns.length}`,
+        `txt_count: ${txt.length}`,
+        `caa_count: ${caa.length}`,
+        `dnssec_ad_seen: ${['A','AAAA','MX','NS','TXT','CAA'].some(t => dns[t]?.ad) ? 'yes' : 'no/unknown'}`,
+        `spf_detected: ${mail.SPF.values.length ? 'yes' : 'no'}`,
+        `dmarc_detected: ${mail.DMARC.values.length ? 'yes' : 'no'}`,
+        `dkim_common_selector_found: ${mail.DKIM.length ? 'yes' : 'no'}`,
+        `ct_unique_names: ${ctParsed.names.length}`
+      ];
+    }
+
+    function dnsCoreLines(dns) {
+      const lines = [];
+      for (const type of ['A', 'AAAA', 'CNAME', 'MX', 'NS', 'TXT', 'SOA', 'CAA']) {
+        const entry = dns[type];
+        if (!entry) continue;
+        if (entry.error) {
+          lines.push(`${type}: error -> ${entry.error}`);
+          continue;
+        }
+        if (!entry.answers.length) {
+          lines.push(`${type}: no answer`);
+          continue;
+        }
+        entry.answers.forEach(ans => lines.push(`${type}: ${ans.data} [ttl=${ans.ttl}]`));
+      }
+      return lines;
+    }
+
+    function renderPolicy(label, result, emptyMessage) {
+      const lines = [];
+      if (result.error) {
+        lines.push(`${label}: lookup error -> ${result.error}`);
+        return lines;
+      }
+      if (result.values.length) {
+        result.values.forEach(v => lines.push(`${label}: ${v}`));
+      } else {
+        lines.push(`${label}: ${emptyMessage}`);
+      }
+      return lines;
+    }
+
+    function mailSignalLines(mail) {
+      const lines = [];
+      lines.push(...renderPolicy('SPF', mail.SPF, 'no spf policy detected on queried name'));
+      lines.push(...renderPolicy('DMARC', mail.DMARC, 'no dmarc policy detected'));
+      lines.push(...renderPolicy('MTA_STS', mail.MTA_STS, 'no mta-sts policy dns record detected'));
+      lines.push(...renderPolicy('BIMI', mail.BIMI, 'no bimi policy detected'));
+
+      if (mail.DKIM.length) {
+        mail.DKIM.forEach(item => item.values.forEach(v => lines.push(`DKIM ${item.selector}: ${v}`)));
+      } else {
+        lines.push('DKIM probes: no common selector found');
+      }
+      return lines;
+    }
+
+    function parseCt(ct) {
+      if (!ct.ok) {
+        return {
+          lines: [`crt.sh fetch failed: ${ct.error}`],
+          names: []
+        };
+      }
+
+      const allNames = [];
+      ct.entries.forEach(entry => {
+        if (entry.name_value) {
+          entry.name_value.split('\n').forEach(name => allNames.push(name.trim().toLowerCase()));
+        }
+        if (entry.common_name) allNames.push(String(entry.common_name).trim().toLowerCase());
+      });
+
+      const names = uniq(allNames).filter(Boolean).filter(x => !x.includes('*'));
+      const issuers = uniq(ct.entries.map(x => x.issuer_name).filter(Boolean));
+
+      const logs = [
+        `crt_rows: ${ct.entries.length}`,
+        `unique_names: ${names.length}`,
+        `issuers_seen: ${issuers.length}`
+      ];
+      issuers.slice(0, 10).forEach(issuer => logs.push(`issuer: ${issuer}`));
+      return { lines: logs, names };
+    }
+
+    function deriveSignals(base, dns, mail, ctNames) {
+      const out = [];
+      const a = dns.A?.answers?.map(x => x.data) || [];
+      const aaaa = dns.AAAA?.answers?.map(x => x.data) || [];
+      const cname = dns.CNAME?.answers?.map(x => x.data) || [];
+      const mx = dns.MX?.answers?.map(x => x.data) || [];
+      const ns = dns.NS?.answers?.map(x => x.data) || [];
+      const txt = dns.TXT?.answers?.map(x => x.data) || [];
+
+      if (a.length || aaaa.length) out.push('name resolves directly to network addresses');
+      if (!a.length && !aaaa.length && cname.length) out.push('name is primarily an alias and not directly addressed here');
+      if (mx.length) out.push('mail exchange is configured on this exact queried name');
+      if (!mx.length) out.push('no mx answer on this exact name; mail may exist only at another zone level');
+      if (ns.length > 2) out.push('multiple nameservers present; zone looks actively managed');
+      if (txt.length > 3) out.push('several txt records published; likely service-verification or policy footprint');
+      if (mail.SPF.values.length) out.push('spf policy exists'); else out.push('spf not detected on queried name');
+      if (mail.DMARC.values.length) out.push('dmarc policy exists'); else out.push('dmarc not detected');
+      if (mail.DKIM.length) out.push('at least one common dkim selector was discovered'); else out.push('no common dkim selector discovered with quick probes');
+      if (mail.MTA_STS.values.length) out.push('mta-sts dns signal exists');
+      if (mail.BIMI.values.length) out.push('bimi dns signal exists');
+      if (ctNames.length > 20) out.push('certificate transparency suggests a broader external name surface');
+      if (ctNames.some(x => /(^|\.)dev\.|(^|\.)staging\.|(^|\.)test\.|(^|\.)uat\./i.test(x))) {
+        out.push('ct names suggest dev or staging exposure patterns');
+      }
+      if (ctNames.some(x => /(^|\.)vpn\.|(^|\.)mail\.|(^|\.)owa\.|(^|\.)autodiscover\.|(^|\.)webmail\./i.test(x))) {
+        out.push('ct names suggest mail or remote-access related service exposure');
+      }
+      if (ctNames.some(x => x !== base && x.endsWith('.' + base))) {
+        out.push('ct contains additional hostnames under the same parent zone');
+      }
+      if (!ctNames.length) out.push('no ct-derived names collected in this run');
+      return out;
+    }
+
+    async function runScan() {
+      const target = normalizeTarget(els.fqdnInput.value);
+      if (!target) {
+        setStatus(['invalid input', 'enter a clean fqdn like example.com or api.example.com'], 'bad');
+        els.results.style.display = 'none';
+        return;
+      }
+
+      els.scanBtn.disabled = true;
+      els.results.style.display = 'none';
+      setStatus([`target accepted: ${target}`, 'running dns / policy / ct collection'], 'normal', true);
+
+      try {
+        const [dns, mail, ct] = await Promise.all([
+          queryRecordSet(target),
+          queryMailSignals(target),
+          queryCrtSh(target)
+        ]);
+
+        const ctParsed = parseCt(ct);
+        const summary = summarizeDns(target, dns, ctParsed, mail);
+        const core = dnsCoreLines(dns);
+        const mailLines = mailSignalLines(mail);
+        const interestingNames = ctParsed.names.slice(0, 80);
+        const derived = deriveSignals(target, dns, mail, ctParsed.names);
+
+        setList(els.summaryList, summary);
+        setList(els.dnsCore, core);
+        setList(els.mailSignals, mailLines);
+        setList(els.ctSignals, ctParsed.lines);
+        setList(els.nameFindings, interestingNames.length ? interestingNames : ['no names discovered']);
+        setList(els.derivedSignals, derived);
+
+        els.results.style.display = 'grid';
+        setStatus([
+          `scan complete for ${target}`,
+          `dns core entries: ${core.length}`,
+          `ct names discovered: ${ctParsed.names.length}`
+        ]);
+      } catch (err) {
+        setStatus(['scan failed', err.message || 'unknown error'], 'bad');
+      } finally {
+        els.scanBtn.disabled = false;
+      }
+    }
+
+    els.scanBtn.addEventListener('click', runScan);
+    els.clearBtn.addEventListener('click', () => {
+      els.fqdnInput.value = '';
+      els.results.style.display = 'none';
+      setStatus(['awaiting input'], 'normal', true);
+      [els.summaryList, els.dnsCore, els.mailSignals, els.ctSignals, els.nameFindings, els.derivedSignals]
+        .forEach(el => el.innerHTML = '');
+      els.fqdnInput.focus();
+    });
+    els.sampleBtn.addEventListener('click', () => {
+      els.fqdnInput.value = 'rts.rs';
+      els.fqdnInput.focus();
+    });
+    els.fqdnInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') runScan();
+    });
+  </script>
+</body>
+</html>
