@@ -1,0 +1,600 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>terminal 8-bit adder</title>
+  <style>
+    :root {
+      --bg: #020402;
+      --bg2: #061006;
+      --panel: rgba(4, 10, 4, 0.95);
+      --panel-2: rgba(2, 6, 2, 0.96);
+      --line: #003300;
+      --line-strong: #00ff00;
+      --text: #00ff00;
+      --text-strong: #00ff00;
+      --text-dim: #009933;
+      --warn: #ff9f1a;
+      --err: #ff4d4d;
+      --hot: #ff6a00;
+      --glow: rgba(0, 255, 0, 0.25);
+      --glow-strong: rgba(0, 255, 0, 0.6);
+    }
+
+    * {
+      box-sizing: border-box;
+      text-transform: lowercase;
+    }
+
+    html, body {
+      margin: 0;
+      min-height: 100%;
+      background:
+        radial-gradient(circle at top, #0a150a 0%, #040804 35%, #020402 100%);
+      color: var(--text);
+      font-family: "courier new", courier, monospace;
+      letter-spacing: 0.02em;
+    }
+
+    body::before {
+      content: "";
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      background:
+        repeating-linear-gradient(
+          to bottom,
+          rgba(255,255,255,0.025) 0px,
+          rgba(255,255,255,0.025) 1px,
+          transparent 2px,
+          transparent 4px
+        );
+      opacity: 0.13;
+      mix-blend-mode: screen;
+    }
+
+    body::after {
+      content: "";
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      box-shadow: inset 0 0 120px rgba(0, 0, 0, 0.75);
+    }
+
+    .wrap {
+      max-width: 1180px;
+      margin: 0 auto;
+      padding: 24px;
+      display: grid;
+      grid-template-columns: 360px 1fr;
+      gap: 18px;
+    }
+
+    .panel {
+      position: relative;
+      background:
+        linear-gradient(180deg, rgba(7, 18, 7, 0.96), rgba(2, 7, 2, 0.98));
+      border: 1px solid var(--line);
+      border-radius: 10px;
+      padding: 16px;
+      box-shadow:
+        0 0 0 1px rgba(30,255,102,0.06) inset,
+        0 0 14px rgba(0,0,0,0.35),
+        0 0 26px rgba(30,255,102,0.08);
+      overflow: hidden;
+    }
+
+    .panel::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      pointer-events: none;
+      background:
+        linear-gradient(90deg, transparent, rgba(30,255,102,0.025), transparent);
+      opacity: 0.7;
+    }
+
+    h1, h2, h3, p {
+      margin-top: 0;
+    }
+
+    h1 {
+      color: var(--text-strong);
+      font-size: 20px;
+      text-shadow: 0 0 6px rgba(0,255,0,0.4);
+      margin-bottom: 10px;
+    }
+
+    h2 {
+      color: var(--text-strong);
+      font-size: 14px;
+      margin-bottom: 10px;
+      text-shadow: 0 0 6px rgba(0,255,0,0.4);
+    }
+
+    .sub {
+      color: var(--text-dim);
+      font-size: 13px;
+      line-height: 1.5;
+      text-shadow: 0 0 6px rgba(0,255,0,0.4);
+    }
+
+    label {
+      display: block;
+      margin: 12px 0 6px;
+      color: var(--text-strong);
+      text-shadow: 0 0 6px rgba(0,255,0,0.4);
+    }
+
+    input {
+      width: 100%;
+      background: #010301;
+      color: var(--text);
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      padding: 10px 12px;
+      font: inherit;
+      outline: none;
+      box-shadow: inset 0 0 10px rgba(0,0,0,0.45);
+    }
+
+    input::placeholder {
+      color: #2f7f2f;
+    }
+
+    input:focus {
+      border-color: var(--line-strong);
+      box-shadow:
+        0 0 0 1px rgba(30,255,102,0.15),
+        0 0 10px rgba(30,255,102,0.15),
+        inset 0 0 12px rgba(0,0,0,0.45);
+    }
+
+    .button-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0,1fr));
+      gap: 10px;
+      margin-top: 14px;
+    }
+
+    button {
+      background:
+        linear-gradient(180deg, #041004, #020602);
+      color: var(--text);
+      border: 1px solid var(--line);
+      border-radius: 6px;
+      padding: 10px 12px;
+      cursor: pointer;
+      font: inherit;
+      transition: 0.15s ease;
+      box-shadow:
+        0 0 0 1px rgba(30,255,102,0.03) inset,
+        0 0 8px rgba(0,0,0,0.35);
+      text-shadow: 0 0 6px rgba(0,255,0,0.4);
+    }
+
+    button:hover {
+      color: var(--text-strong);
+      border-color: var(--line-strong);
+      box-shadow:
+        0 0 0 1px rgba(30,255,102,0.06) inset,
+        0 0 12px rgba(30,255,102,0.12);
+      transform: translateY(-1px);
+    }
+
+    button:active {
+      transform: translateY(0);
+    }
+
+    button:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+      transform: none;
+      box-shadow: none;
+    }
+
+    .wide {
+      grid-column: 1 / -1;
+    }
+
+    .legend {
+      margin-top: 14px;
+      padding: 12px;
+      border: 1px dashed #1c5a1c;
+      border-radius: 8px;
+      font-size: 13px;
+      line-height: 1.55;
+      color: var(--text-dim);
+      white-space: pre-line;
+      background: rgba(1, 4, 1, 0.5);
+      box-shadow: inset 0 0 14px rgba(0,0,0,0.35);
+    }
+
+    .legend strong {
+      color: var(--warn);
+      text-shadow: 0 0 6px rgba(0,255,0,0.4);
+    }
+
+    .screen {
+      display: grid;
+      gap: 14px;
+    }
+
+    .display,
+    .reg,
+    .bus,
+    .terminal {
+      background: rgba(1, 4, 1, 0.82);
+      box-shadow: inset 0 0 16px rgba(0,0,0,0.42);
+    }
+
+    .display {
+      min-height: 96px;
+      padding: 12px;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+    }
+
+    .result {
+      font-size: 15px;
+      line-height: 1.6;
+    }
+
+    .big {
+      color: var(--text-strong);
+      font-size: 24px;
+      text-shadow: 0 0 6px rgba(0,255,0,0.4);
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0,1fr));
+      gap: 12px;
+    }
+
+    .reg {
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 10px;
+    }
+
+    .reg-name {
+      color: var(--warn);
+      font-size: 13px;
+      text-shadow: 0 0 6px rgba(0,255,0,0.4);
+    }
+
+    .reg-dec {
+      margin-top: 4px;
+      color: var(--text-strong);
+    }
+
+    .reg-bin {
+      color: var(--text-dim);
+      font-size: 13px;
+      word-break: break-all;
+    }
+
+    .bus {
+      border: 1px dashed #2a6f2a;
+      border-radius: 8px;
+      padding: 10px;
+      color: var(--hot);
+      min-height: 46px;
+      text-shadow: 0 0 6px rgba(0,255,0,0.4);
+    }
+
+    .terminal {
+      position: relative;
+      border: 1px solid var(--line);
+      border-radius: 8px;
+      padding: 12px;
+      min-height: 320px;
+      max-height: 440px;
+      overflow: auto;
+      white-space: pre-wrap;
+      line-height: 1.45;
+      color: var(--text);
+    }
+
+    .terminal::before {
+      content: "> live execution log";
+      display: block;
+      color: var(--warn);
+      margin-bottom: 10px;
+      text-shadow: 0 0 6px rgba(0,255,0,0.4);
+    }
+
+    .muted {
+      color: var(--text-dim);
+    }
+
+    .warn {
+      color: var(--warn);
+      text-shadow: 0 0 8px rgba(255,159,26,0.16);
+    }
+
+    .err {
+      color: var(--err);
+      text-shadow: 0 0 8px rgba(255,77,77,0.2);
+    }
+
+    .footer-note {
+      margin-top: 10px;
+      font-size: 12px;
+      color: var(--text-dim);
+    }
+
+    .caret::after {
+      content: "_";
+      display: inline-block;
+      margin-left: 4px;
+      animation: blink 1s steps(1, end) infinite;
+      color: var(--text-strong);
+    }
+
+    @keyframes blink {
+      0%, 49% { opacity: 1; }
+      50%, 100% { opacity: 0; }
+    }
+
+    @media (max-width: 900px) {
+      .wrap {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <section class="panel">
+      <h1 class="caret">&gt; terminal 8-bit adder</h1>
+      <p class="sub">simple interactive mock cpu that really adds two 8-bit numbers and shows each step.</p>
+
+      <label for="inputA">input a (0-255)</label>
+      <input id="inputA" type="number" min="0" max="255" value="7" />
+
+      <label for="inputB">input b (0-255)</label>
+      <input id="inputB" type="number" min="0" max="255" value="5" />
+
+      <div class="button-grid">
+        <button id="loadBtn">load</button>
+        <button id="stepBtn">step</button>
+        <button id="runBtn">run</button>
+        <button id="resetBtn">reset</button>
+        <button id="exampleBtn" class="wide">load example (170 + 100)</button>
+      </div>
+
+      <div class="legend"><strong>legend / how to use</strong>
+1) enter a and b.
+2) click load to place values into the simulated registers.
+3) click step to move one micro-step at a time.
+4) click run to execute the whole addition automatically.
+5) result appears in register c / out.
+
+micro-steps:
+- fetch a  → move a into alu input
+- fetch b  → move b into alu input
+- exec add → a + b
+- write c  → write result to output register
+- halt     → stop
+
+notes:
+- this is 8-bit arithmetic, so max visible value is 255.
+- if the sum is above 255, carry becomes 1 and result wraps modulo 256.</div>
+
+    </section>
+
+    <section class="panel screen">
+      <div>
+        <h2>&gt; result</h2>
+        <div class="display result" id="resultBox">
+          <div>status: <span class="muted">idle</span></div>
+          <div class="big">c = --</div>
+        </div>
+      </div>
+
+      <div>
+        <h2>&gt; registers</h2>
+        <div class="grid">
+          <div class="reg"><div class="reg-name">reg a</div><div class="reg-dec" id="regA-dec">--</div><div class="reg-bin" id="regA-bin">--------</div></div>
+          <div class="reg"><div class="reg-name">reg b</div><div class="reg-dec" id="regB-dec">--</div><div class="reg-bin" id="regB-bin">--------</div></div>
+          <div class="reg"><div class="reg-name">alu</div><div class="reg-dec" id="alu-dec">--</div><div class="reg-bin" id="alu-bin">--------</div></div>
+          <div class="reg"><div class="reg-name">reg c / out</div><div class="reg-dec" id="regC-dec">--</div><div class="reg-bin" id="regC-bin">--------</div></div>
+          <div class="reg"><div class="reg-name">carry</div><div class="reg-dec" id="carry-dec">0</div><div class="reg-bin" id="carry-bin">0</div></div>
+          <div class="reg"><div class="reg-name">step</div><div class="reg-dec" id="step-dec">idle</div><div class="reg-bin" id="step-bin">waiting for load</div></div>
+        </div>
+      </div>
+
+      <div>
+        <h2>&gt; active bus</h2>
+        <div class="bus" id="busText">no signal.</div>
+      </div>
+
+      <div>
+        <div class="terminal" id="terminal"></div>
+      </div>
+    </section>
+  </div>
+
+  <script>
+    const steps = [
+      { key: 'fetchA', label: 'fetch a', bus: 'bus <= reg a', run: state => {
+        state.aluPreview = state.A;
+        log(`fetch a  : loaded a into alu input (${state.A} / ${toBin(state.A)})`);
+      }},
+      { key: 'fetchB', label: 'fetch b', bus: 'bus <= reg b', run: state => {
+        log(`fetch b  : loaded b into alu input (${state.B} / ${toBin(state.B)})`);
+      }},
+      { key: 'execAdd', label: 'exec add', bus: 'alu <= a + b', run: state => {
+        const full = state.A + state.B;
+        state.carry = full > 255 ? 1 : 0;
+        state.ALU = full & 255;
+        log(`exec add : ${state.A} + ${state.B} = ${full}${state.carry ? ' -> overflow, carry=1, low8=' + state.ALU : ''}`);
+      }},
+      { key: 'writeC', label: 'write c', bus: 'reg c <= alu', run: state => {
+        state.C = state.ALU;
+        log(`write c  : result written to output register (${state.C} / ${toBin(state.C)})`);
+      }},
+      { key: 'halt', label: 'halt', bus: 'cpu halted', run: state => {
+        state.halted = true;
+        log(`halt     : execution complete. final output c=${state.C}`, 'warn');
+      }}
+    ];
+
+    const state = {
+      loaded: false,
+      running: false,
+      halted: false,
+      stepIndex: -1,
+      A: null,
+      B: null,
+      ALU: null,
+      C: null,
+      carry: 0,
+      aluPreview: null
+    };
+
+    const el = id => document.getElementById(id);
+    const terminal = el('terminal');
+    const resultBox = el('resultBox');
+    const controls = {
+      load: el('loadBtn'),
+      step: el('stepBtn'),
+      run: el('runBtn'),
+      reset: el('resetBtn'),
+      example: el('exampleBtn')
+    };
+
+    function toBin(v) {
+      if (v === null || v === undefined || Number.isNaN(v)) return '--------';
+      return (v & 255).toString(2).padStart(8, '0');
+    }
+
+    function clampByte(v) {
+      return Math.max(0, Math.min(255, Number(v)));
+    }
+
+    function line(text, cls='') {
+      const div = document.createElement('div');
+      if (cls) div.className = cls;
+      div.textContent = text.toLowerCase();
+      terminal.appendChild(div);
+      terminal.scrollTop = terminal.scrollHeight;
+    }
+
+    function log(msg, cls='') {
+      line('> ' + msg, cls);
+    }
+
+    function resetState(clearInputs=false) {
+      state.loaded = false;
+      state.running = false;
+      state.halted = false;
+      state.stepIndex = -1;
+      state.A = null;
+      state.B = null;
+      state.ALU = null;
+      state.C = null;
+      state.carry = 0;
+      state.aluPreview = null;
+      if (clearInputs) {
+        el('inputA').value = 0;
+        el('inputB').value = 0;
+      }
+      render();
+    }
+
+    function render() {
+      el('regA-dec').textContent = state.A ?? '--';
+      el('regA-bin').textContent = toBin(state.A);
+      el('regB-dec').textContent = state.B ?? '--';
+      el('regB-bin').textContent = toBin(state.B);
+      el('alu-dec').textContent = state.ALU ?? (state.aluPreview ?? '--');
+      el('alu-bin').textContent = state.ALU !== null ? toBin(state.ALU) : toBin(state.aluPreview);
+      el('regC-dec').textContent = state.C ?? '--';
+      el('regC-bin').textContent = toBin(state.C);
+      el('carry-dec').textContent = state.carry;
+      el('carry-bin').textContent = String(state.carry);
+
+      const stepLabel = state.stepIndex < 0 ? 'idle' : steps[Math.min(state.stepIndex, steps.length - 1)].label;
+      el('step-dec').textContent = stepLabel;
+      el('step-bin').textContent = state.loaded ? `micro-step ${Math.max(0, state.stepIndex + 1)} / ${steps.length}` : 'waiting for load';
+      el('busText').textContent = state.stepIndex < 0 ? 'no signal.' : steps[Math.min(state.stepIndex, steps.length - 1)].bus;
+
+      let status = 'idle';
+      let result = '--';
+      if (state.loaded && !state.halted) status = 'loaded / ready';
+      if (state.running) status = 'running';
+      if (state.halted) status = 'halted';
+      if (state.C !== null) result = state.C;
+
+      resultBox.innerHTML = `<div>status: <span class="${state.halted ? 'warn' : 'muted'}">${status}</span></div><div class="big">c = ${result}</div><div>${state.C !== null ? `binary: ${toBin(state.C)} | carry: ${state.carry}` : 'binary: -------- | carry: 0'}</div>`;
+
+      controls.step.disabled = !state.loaded || state.halted || state.running;
+      controls.run.disabled = !state.loaded || state.halted || state.running;
+    }
+
+    function loadValues() {
+      const rawA = el('inputA').value;
+      const rawB = el('inputB').value;
+      if (rawA === '' || rawB === '') {
+        log('load failed: both a and b must be provided.', 'err');
+        return;
+      }
+      const A = clampByte(rawA);
+      const B = clampByte(rawB);
+      if (String(A) !== rawA || String(B) !== rawB) {
+        log('input outside 0-255 was clamped to byte range.', 'warn');
+      }
+      resetState();
+      state.A = A;
+      state.B = B;
+      state.loaded = true;
+      log('system reset.');
+      log(`load      : a=${A} (${toBin(A)}) | b=${B} (${toBin(B)})`, 'warn');
+      render();
+    }
+
+    function stepOnce() {
+      if (!state.loaded || state.halted || state.running) return;
+      state.stepIndex += 1;
+      const current = steps[state.stepIndex];
+      current.run(state);
+      render();
+    }
+
+    async function runAll() {
+      if (!state.loaded || state.halted || state.running) return;
+      state.running = true;
+      render();
+      while (!state.halted) {
+        stepOnce();
+        await new Promise(r => setTimeout(r, 650));
+      }
+      state.running = false;
+      render();
+    }
+
+    controls.load.addEventListener('click', loadValues);
+    controls.step.addEventListener('click', stepOnce);
+    controls.run.addEventListener('click', runAll);
+    controls.reset.addEventListener('click', () => {
+      terminal.textContent = '';
+      resetState();
+      log('manual reset complete.', 'warn');
+    });
+    controls.example.addEventListener('click', () => {
+      el('inputA').value = 170;
+      el('inputB').value = 100;
+      log('example loaded into input fields: 170 + 100', 'warn');
+    });
+
+    terminal.textContent = '';
+    log('boot sequence complete.');
+    log('ready. enter two numbers and click load.');
+    render();
+  </script>
+</body>
+</html>
