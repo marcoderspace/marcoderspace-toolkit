@@ -2,6 +2,8 @@
 
 A browser-based interactive model of a minimal 8-bit execution flow.
 
+![preview](assets/screenshot.png)
+
 ## Overview
 
 This tool simulates a simple computation process where two 8-bit values are loaded, processed through an ALU, and written to an output register.
