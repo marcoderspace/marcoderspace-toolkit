@@ -2,6 +2,8 @@
 
 A browser-based dual-terminal interface that displays client environment details and performs basic network location lookup.
 
+![preview](assets/screenshot.png)
+
 ## Overview
 
 This is a single-file implementation that renders two terminal-style panels:
